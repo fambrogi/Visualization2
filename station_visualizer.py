@@ -4,18 +4,28 @@ import dash
 import plotly.express as px  # (version 4.7.0)
 import plotly.graph_objects as go
 import plotly.express as px
+
 import dash_table
+
 import dash  # (version 1.12.0) pip install dash
+
 import dash_core_components as dcc
 import dash_html_components as html
+
 from dash.dependencies import Input, Output, State
+
 import scipy
+
 from scipy import stats
+
 import math
 import dash_bootstrap_components as dbc
 
 
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+#external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+#app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 
 def read_dataframe():
@@ -155,10 +165,6 @@ def combine_points(df, zoom_level):
                 r2 = RADIUS[j]
                 rec2 = RECORDS[j]
 
-                # should be irrelevant
-                #if lat1==lat2 and lon1==lon2:
-                #    continue
-
                 max_points = ( distance(lat1, lon1, lat2, lon2) ) / limit # max number of distinct points with r=1
                 tot_points = r1 + r2
 
@@ -228,13 +234,13 @@ app.layout = html.Div([
 
     dbc.Row(dbc.Col(html.H1("Federico Ambrogi , e1449911@student.tuwien.ac.at" ,
                             style={'color': 'blue', 'fontSize': 20}),
-                    width={'size': 6}
+                    width={'size': 8}
                     )
             ),
 
     dbc.Row(dbc.Col(html.H2("Tool for the visualization of the IGRA2 upper-air/radiosonde stations using the size adapting technique from Janicke et al. 2012",
                             style={'color': 'black', 'fontSize': 25}),
-                    width={'size': 6}
+                    width={'size': 8}
                     )
             ),
 
@@ -243,7 +249,7 @@ app.layout = html.Div([
         href="https://www.informatik.uni-leipzig.de/~stjaenicke/Comparative_Visualization_Of_Geospatial-Temporal_Data.pdf",
         target="_blank",
         style={'color': 'black', 'fontSize': 15}),
-                    width={'size': 6}
+                    width={'size': 8}
                     )
             ),
 
@@ -266,14 +272,13 @@ app.layout = html.Div([
     ),
 
     html.Br(),  # Br is a break i.e. a space in between
-    html.Br(),  # Br is a break i.e. a space in between
+    dbc.Row(html.Div([html.H2("Zoom Level",
+                             style={'color': 'red', 'fontSize': fs_main},
+                     ),
 
-    dbc.Row([html.H2("Zoom Level",
-                             style={'color': 'red', 'fontSize': fs_main}),
              html.H2("Select the desired zoom level to visualize the station distribution on the map. "
                      "Note that the automatic mouse-wheel zooming will not work",
                      style={'color': 'gray', 'fontSize': fs_des}),
-
 
             dcc.Dropdown(id="scale",
                      options=[
@@ -288,12 +293,11 @@ app.layout = html.Div([
                      style={'width': "40%"}
                      ),
 
-             html.Br(),
-
              html.H2("Projection Type ",
                     style={'color': 'red', 'fontSize': fs_main}),
+             html.Br(),
 
-            html.H2("Select the desired type of map projection. "
+             html.H2("Select the desired type of map projection. "
                     "The visualization is optimized for the 'Mercator' projection",
                      style={'color': 'gray', 'fontSize': fs_des}),
 
@@ -326,7 +330,7 @@ app.layout = html.Div([
             value="mercator",
             style={'width': "40%"}
             ),
-         ]),
+         ]) ),
 
     html.Br(),  # Br is a break i.e. a space in between
     html.Br(),  # Br is a break i.e. a space in between
@@ -437,14 +441,15 @@ app.layout = html.Div([
         ]),
     ]),
 
-])
+] ,
+    style={'width': '100%',
+           'display': 'inline-block',
+           'padding-left': '30px'},
 
-
+)
 app.css.append_css({
     'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
 })
-
-
 
 
 """ Plotting maps"""
