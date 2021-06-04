@@ -4,7 +4,6 @@ import dash
 import plotly.express as px  # (version 4.7.0)
 import plotly.graph_objects as go
 import plotly.express as px
-
 import dash_table
 import dash  # (version 1.12.0) pip install dash
 import dash_core_components as dcc
@@ -12,54 +11,61 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import scipy
 from scipy import stats
-
 import math
-
 import dash_bootstrap_components as dbc
 
-#app = dash.Dash(__name__ , external_stylesheets= [dbc.themes.MINTY])
-#app = dash.Dash(__name__ )
 
-#external_stylesheets = ['dbc.themes.BOOTSTRAP']
-#app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 def read_dataframe():
-    """ Reading the igra2 file as a dataframe.
+    """ Reading the igra2 file as a dataframe
         Data cleaning:
             - removing wrong latitude and longitude values
         Return:
             - pandas dataframe with 8 columns
              ['code', 'latitude', 'longitude', 'elevation', 'dummy', 'station',
-                          'start', 'end', 'records'] """
+                          'start', 'end', 'records']
 
-
-    '''
     # data is saved irregularly spaced, need to use fixed-width formatted lines read function
     df = pd.read_fwf('data/igra2.csv', widths=(11, 9, 10, 7, 4, 30, 5, 5, 7),
                           names=( 'code', 'latitude', 'longitude', 'elevation', 'dummy',
                                   'station', 'start', 'end', 'records') )
-    '''
+    """
 
     file_url = "https://raw.githubusercontent.com/fambrogi/Visualization2/main/data/igra2.csv"
-    df = pd.read_fwf(file_url, widths=(11, 9, 10, 7, 4, 30, 5, 5, 7),
+
+    try:
+        df = pd.read_fwf(file_url, widths=(11, 9, 10, 7, 4, 30, 5, 5, 7),
+                          names=( 'code', 'latitude', 'longitude', 'elevation', 'dummy',
+                                  'station', 'start', 'end', 'records') )
+    except:
+        file_path = "data/igra2.csv"
+        df = pd.read_fwf(file_path, widths=(11, 9, 10, 7, 4, 30, 5, 5, 7),
                           names=( 'code', 'latitude', 'longitude', 'elevation', 'dummy',
                                   'station', 'start', 'end', 'records') )
 
-
+    # cleaning possible wrong lat/lon values
     df = df.loc[ (df['latitude'] <= 90) & (df['latitude'] >= -90) ]
     df = df.loc[ (df['longitude'] <= 180) & (df['latitude'] >= -180) ]
     df = df.sort_values(['latitude','longitude'])
-    df = df.drop(columns = ["dummy"])
-    return df[0:2500]
 
-    #return df
+    # removing dummy columns
+    df = df.drop(columns = ["dummy"])
+
+    return df
+
+""" Reading the dataframe """
+dataframe = read_dataframe()
+
 
 def distance(point_lat, point_lon, dest_lat, dest_lon):
     """
-    Calculate the Haversine distance.
+    Calculate the Haversine distance, given lats and lons of two coordinate points
+    Input:
+        - point_lat, point_lon, dest_lat, dest_lon: coordinates of point1 and point2
+    Return:
+        - distance in Km
     """
     radius = 6371  # km
 
@@ -75,23 +81,33 @@ def distance(point_lat, point_lon, dest_lat, dest_lon):
 
 
 
-MSIZE = 5
+""" Define common variable """
 
-dataframe = read_dataframe()
+MSIZE = 5  # default size of points in the scatter plot
+
 
 def combine_points(df, zoom_level):
     """ Core implementation of the Algorithm described in Janicke et al. 2012.
         Calculates if the bubble marker needs to be merged,
         calculates the position of the new bubble,
-        calculates the radius of the new bubble.
-        Initial size is fixed to XXX. """
+        calculates the radius of the new bubble
 
+        Input:
+            - df: original dataframe after date range selection
+            - zoom-level: selected zoom level from dropwdonw menu
+        Return:
+            - aggregated dataframe including ["latitude","longitude","station","elevation","radius"]
+    """
+
+    """ Initial radius and maximum allowed radius of the bubbles """
     point_size = MSIZE
     max_radius = 15
+
     def weighted_average(v1, w1, v2, w2):
-        """ Return the weighted average """
+        """ Return the weighted average of the coordinates.
+            Used to calculate the new coordinates of the points, when merging two bubbles.
+            (see article p.3 "placed at the barycenter of all their data elements") """
         r = (v1 * w1 + v2 * w2) / (w1 + w2)
-        #print( v1, w1, v2, w2 , r )
         return r
 
     # columns : 'code', 'latitude', 'longitude', 'elevation', 'dummy',
@@ -102,16 +118,15 @@ def combine_points(df, zoom_level):
     RADIUS = len(LAT) * [point_size] # initialize an empty array for radius = 1
     RECORDS = list(df['records'][:])
 
-    # For each zoom level, I empirically extracted the distance in km for which two points with default size
-    # do not overlap.
-    scale_distance = {1: 25,  # nemayer, sanae south pole , size_marker = 5
-                      2: 75,
-                      3: 50,
-                      5: 30,
-                      10: 15}
 
-    # 1:700 is the minimum distance between two points to be visually separated with marker size=5
-    # means: 350 per each point minimum
+    """ Empirical scale distance: for a given fixed initial bubble size "point_size", gives the """
+    scale_distance = {1: 25,
+                      2: 13,
+                      3: 7,
+                      5: 4,
+                      10: 3}
+
+    # 1:25 is the minimum distance between two points to be visually separated (non-overlapping dots) with marker size=5
     limit = scale_distance[zoom_level]
 
     # Starting the loop for points merging
@@ -119,6 +134,8 @@ def combine_points(df, zoom_level):
     i = 0
 
     tot_points = len(LAT)
+
+    """ Merging loop: creates bubbles of agglomerated points if the distance fall below a certain threshold """
     while merge:
 
         #if i == 0:
@@ -132,10 +149,7 @@ def combine_points(df, zoom_level):
             rec1 = RECORDS[i]
 
             for j in range(i+1, tot_points):
-                #if i==j:
-                #    continue
-                #print(i, LAT, LON, j)
-                #print(len(LAT), j )
+
                 lat2, lon2 = LAT[j], LON[j]
                 s2 = STAT[j]
                 r2 = RADIUS[j]
@@ -161,9 +175,6 @@ def combine_points(df, zoom_level):
                     RECORDS.append(rec1 + rec2 )
                     # Remove old points from lists
 
-                    #print('LAT', len(LAT), i, j )
-                    #print('LON', len(LAT), i, j )
-
                     for index in [j,i]:
                         LAT.pop(index)
                         LON.pop(index)
@@ -184,8 +195,7 @@ def combine_points(df, zoom_level):
 
         merge = False
 
-    #RADIUS = point_size * np.array(RADIUS)
-
+    """ Create a dictionary to convert to a dataframe """
     dic = {'latitude': LAT , 'longitude': LON,
                'radius': RADIUS,
                'station' : STAT,
@@ -196,23 +206,19 @@ def combine_points(df, zoom_level):
     return df_resized
 
 
+""" Creating the layout of the application """
 
-
-
-#a = combine_points( dataframe, 3)
-#print(0)
-
-""" Setting the APP LAYOUT 
-What goes inside the app layout is your dash components,
-with the graphs, layouts, checkboxes
-anything that is listed here: https://dash.plotly.com/dash-core-components 
-"""
-
+# dates array for the date selection slider
 dates = [1900 + 10*i for i in range(0,21)]
+
+fs_main = 24
+fs_des = 18
+
+
 
 app.layout = html.Div([
 
-    html.Br(),  # Br is a break i.e. a space in between
+    html.Br(),
 
     dbc.Row (dbc.Col (html.H1("Visualization 2 - SS2021",
                       style={'color': 'blue', 'fontSize': 50}),
@@ -221,7 +227,7 @@ app.layout = html.Div([
              ),
 
     dbc.Row(dbc.Col(html.H1("Federico Ambrogi , e1449911@student.tuwien.ac.at" ,
-                            style={'color': 'black', 'fontSize': 25}),
+                            style={'color': 'blue', 'fontSize': 20}),
                     width={'size': 6}
                     )
             ),
@@ -250,15 +256,23 @@ app.layout = html.Div([
     )
     ),
 
+    dbc.Row(dbc.Col(html.A(
+        "GitHub Source Code",
+        href="https://github.com/fambrogi/Visualization2",
+        target="_blank",
+        style={'color': 'black', 'fontSize': 15}),
+        width={'size': 6}
+    )
+    ),
 
     html.Br(),  # Br is a break i.e. a space in between
     html.Br(),  # Br is a break i.e. a space in between
 
     dbc.Row([html.H2("Zoom Level",
-                             style={'color': 'red', 'fontSize': 22}),
+                             style={'color': 'red', 'fontSize': fs_main}),
              html.H2("Select the desired zoom level to visualize the station distribution on the map. "
                      "Note that the automatic mouse-wheel zooming will not work",
-                     style={'color': 'gray', 'fontSize': 17}),
+                     style={'color': 'gray', 'fontSize': fs_des}),
 
 
             dcc.Dropdown(id="scale",
@@ -274,12 +288,14 @@ app.layout = html.Div([
                      style={'width': "40%"}
                      ),
 
-            html.H2("Projection Type ",
-                    style={'color': 'red', 'fontSize': 22}),
+             html.Br(),
+
+             html.H2("Projection Type ",
+                    style={'color': 'red', 'fontSize': fs_main}),
 
             html.H2("Select the desired type of map projection. "
                     "The visualization is optimized for the 'Mercator' projection",
-                     style={'color': 'gray', 'fontSize': 17}),
+                     style={'color': 'gray', 'fontSize': fs_des}),
 
             dcc.Dropdown(id="projection",
             options=[
@@ -313,13 +329,14 @@ app.layout = html.Div([
          ]),
 
     html.Br(),  # Br is a break i.e. a space in between
-    #html.Br(),  # Br is a break i.e. a space in between
+    html.Br(),  # Br is a break i.e. a space in between
 
     html.P([
-        html.Label("Start and End date of Observations "),
+        html.Label("Start and End date of Observations ",
+                   style={'color': 'red', 'fontSize': fs_main}),
 
         html.H2("Select the desired time range of the observations ",
-                style={'color': 'gray', 'fontSize': 17}),
+                style={'color': 'gray', 'fontSize': fs_des}),
 
         dcc.RangeSlider(id='year_slider',
                         min=1900,
@@ -337,10 +354,22 @@ app.layout = html.Div([
 
     html.Br(),  # Br is a break i.e. a space in between
     html.Br(),  # Br is a break i.e. a space in between
-    html.Br(),  # Br is a break i.e. a space in between
+
+    html.Div([html.Div([
+
+        html.H2("Upper-Air/Radiosondes Stations Map ",
+                style={'color': 'red', 'fontSize': fs_main}),
+        html.H2(
+            "Maps of the distribution of Upper-Air/Radiosondes Stations using deafult scatter plot and the implementation of Janicke et Al. 20120 visualization ",
+            style={'color': 'gray', 'fontSize': fs_des}),
+    ]),
+    ]),
+
+    html.Br(),
 
     # Placeholder for the maps (original and following Janicke et al. 2012 )
-    html.Div([ html.Div([ dcc.Graph(id='map', figure={},)],
+    html.Div([ html.Div([
+                        dcc.Graph(id='map', figure={},)],
                         style={'width': '48%',
                                'display': 'inline-block',
                                'padding-left': '50px' }),
@@ -355,59 +384,61 @@ app.layout = html.Div([
               ]),
 
 
-    html.Br(),  # Br is a break i.e. a space in between
-    html.Br(),  # Br is a break i.e. a space in between
+    html.Br(),
+    html.Br(),
 
-    html.Div([ html.Div([
+    # Placeholder for the table
+    html.Div([html.Div([
 
-                 html.H2("IGRA2 Data ",
-                         style={'color': 'red', 'fontSize': 22}),
-                 html.H2("Select a data point from the Janicke map to display a sumamrz of the data of all stations included in the point",
-                         style={'color': 'gray', 'fontSize': 17}),
+        html.H2("IGRA2 Data ",
+                style={'color': 'red', 'fontSize': fs_main}),
+        html.H2(
+            "Select a data point clicking on the Janicke map to display a summary of the data of all stations included in the bubble",
+            style={'color': 'gray', 'fontSize': fs_des}),
 
-                 html.Div([ dash_table.DataTable(
-                            id='table',
-                            columns=[
-                                {"name": i, "id": i, "deletable": False, "selectable": False} for i in dataframe.columns ],
-                            data=dataframe[:10].to_dict('records'),
-                            editable=False,
-                            filter_action="native",
-                            #sort_action="native",
-                            #sort_mode="multi",
-                            column_selectable=False,
-                            row_selectable="single",
-                            row_deletable=False,
-                            page_action="native",
-                            #page_size= 1,)
-                        )],
-                         style={
-                               'display': 'inline-block',
-                               'padding-left': '5px'}),
-            ]),
+        html.Div([dash_table.DataTable(
+            id='table',
+            columns=[
+                {"name": i, "id": i, "deletable": False, "selectable": False} for i in dataframe.columns],
+            data=dataframe[:10].to_dict('records'),
+            editable=False,
+            filter_action="native",
+            # sort_action="native",
+            # sort_mode="multi",
+            column_selectable=False,
+            row_selectable= False,
+            row_deletable=False,
+            page_action="native",
+        )],
+            style={
+                'display': 'inline-block',
+                'padding-left': '50px',
+                'padding-right': '10px',
+                'width': "95%"}),
+    ]),
 
+        html.Br(),
+        html.Br(),
 
-            html.Div([
+        html.Div([
 
-                html.H2("Temperature Trend ",
-                        style={'color': 'red', 'fontSize': 22}),
-                html.H2(
-                    "Select a row from the table to display the Temperature time series [P=100hPa]",
-                    style={'color': 'gray', 'fontSize': 17}),
+            html.H2("Temperature Trend ",
+                    style={'color': 'red', 'fontSize': fs_main}),
+            html.H2(
+                "Select a row from the table to display the Temperature time series [P=100hPa]",
+                style={'color': 'gray', 'fontSize': fs_des}),
 
-                 html.Div([ dcc.Graph(id='time_series',
-                                     )],
-                         style={'width': '10%',
-                                'display': 'inline-block',
-                                'padding-left': '10px'}),
+            html.Div([dcc.Graph(id='time_series',
+                                )],
+                     style={'width': '95%',
+                            'display': 'inline-block',
+                            'padding-left': '20px'}),
 
-
-             ]),
-        ])
-
-
-
+        ]),
+    ]),
 
 ])
+
 
 app.css.append_css({
     'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
@@ -416,14 +447,10 @@ app.css.append_css({
 
 
 
-
-# time series
+""" Plotting maps"""
 @app.callback(
-        #Output(component_id='time_series', component_property='figure'),
         Output(component_id='map_2', component_property='figure'),
         Output(component_id='map', component_property='figure'),
-
-#        Output(component_id='time_series', component_property = 'figure'),
 
         Input('year_slider', 'value'),
         Input(component_id='scale', component_property='value'),
@@ -450,11 +477,11 @@ def update_plots(year_range, scale, projection):
         map = go.Figure(data=go.Scattergeo(lat=df.latitude, lon=df.longitude,
                                            text=df["station"],
                                            mode='markers',
-                                           marker=dict(size=marker_size, opacity=0.8, reversescale=True,
+                                           marker=dict(size=marker_size, opacity=0.9, reversescale=True,
                                                        autocolorscale=False,
                                                        line=dict(
-                                                           width=1,
-                                                           # color='rgba(102, 102, 102)'
+                                                           width=0.5,
+                                                           color='black'
                                                        ),
                                                        colorscale='Plotly3', cmin=0,
                                                        color=df['records'],
@@ -472,11 +499,13 @@ def update_plots(year_range, scale, projection):
 
         map.update_geos(
             resolution=50,
-            showcoastlines=True, coastlinecolor="RebeccaPurple",
-            showland=True, landcolor="White",
-            showocean=True, oceancolor="LightBlue",
-            showlakes=True, lakecolor="Blue",
-            showrivers=True, rivercolor="Blue"
+            showcoastlines=True, coastlinecolor="Gray",
+            showland=True, landcolor="white",
+            showocean=True, oceancolor="skyblue",
+            showlakes=False, lakecolor="Blue",
+            showrivers=False, rivercolor="Blue",
+            showcountries=True, countrycolor="lightgray"
+
         )
 
         #map.update_layout(height=500, margin={"r": 20, "t": 20, "l": 20, "b": 20})
@@ -504,11 +533,11 @@ def update_plots(year_range, scale, projection):
         map = go.Figure(data=go.Scattergeo(lat=df.latitude, lon=df.longitude,
                                            text=df["station"],
                                            mode='markers',
-                                           marker=dict(size=df['radius'], opacity=0.8, reversescale=True,
+                                           marker=dict(size=df['radius'], opacity=0.9, reversescale=True,
                                                        autocolorscale=False,
                                                        line=dict(
-                                                           width=1,
-                                                           #color='red',
+                                                           width=0.5,
+                                                           color='black',
                                                        ),
                                                        colorscale='Plotly3', cmin=0,
                                                        color=df['records'],
@@ -526,11 +555,13 @@ def update_plots(year_range, scale, projection):
 
         map.update_geos(
             resolution=50,
-            showcoastlines=True, coastlinecolor="RebeccaPurple",
-            showland=True, landcolor="LightGreen",
-            showocean=True, oceancolor="LightBlue",
-            showlakes=True, lakecolor="Blue",
-            showrivers=True, rivercolor="Blue"
+            showcoastlines=True, coastlinecolor="Gray",
+            showland=True, landcolor="white",
+            showocean=True, oceancolor="skyblue",
+            showlakes=False, lakecolor="Blue",
+            showrivers=False, rivercolor="Blue",
+            showcountries=True, countrycolor="lightgray"
+
         )
 
         map.update_layout(height=700, width = 1100,
@@ -551,42 +582,6 @@ def update_plots(year_range, scale, projection):
 
         return map
 
-    '''
-    def time_series():
-        """ Plots a temperature time series retirevend the station name from the selected row in the table """
-
-        dir = "https://raw.githubusercontent.com/fambrogi/Visualization2/main/data/igra2_temp/"
-        station = "ACM00078861"
-
-        file = dir + "/" + station + ".csv"
-        data = pd.read_csv(file,
-                           sep="\t",
-                           names=["index", "date", "temp"],
-                           header=1 )
-
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data.date, y=data.temp,
-                                 mode='lines',
-                                 name='lines',
-                                 marker_color='pink') )
-
-        fig.update_layout( title = {
-                                    "text": "Time series for the station " + station ,
-                                    "y":1.,
-                                    "x":0.5,
-                                    "xanchor": "center",
-                                    "yanchor": "top", } ,
-
-                            height = 400, width = 1100,
-                            margin = {"r": 20, "t": 50, "l": 20, "b": 20},
-                            yaxis_title="Temperature [K]",
-                            xaxis_title="Year",
-
-                        )
-
-        return fig
-
-    '''
 
     standard_map = standard_map(df)
     paper_map = paper_map(df)
@@ -596,7 +591,7 @@ def update_plots(year_range, scale, projection):
     return [paper_map, standard_map]  # NB must always return a list even if you have one output only, due to @app
 
 
-
+""" Plotting Table """
 @app.callback(
     Output('table', 'data'),
     Input('map_2', 'clickData') )
@@ -639,6 +634,7 @@ def update_table(clickData):
 
 
 
+""" Plotting Time Series """
 
 @app.callback(
     Output(component_id='time_series', component_property='figure'),
@@ -649,7 +645,6 @@ def update_table(clickData):
 
 def upate_time_series(active_cell, data):
     """ Plots a temperature time series retrieving the station name from the selected row in the table """
-
 
     # Github directory containing the temperature data for each station
     dir = "https://raw.githubusercontent.com/fambrogi/Visualization2/main/data/igra2_temp/"
@@ -668,7 +663,6 @@ def upate_time_series(active_cell, data):
                        header=1)
 
     except:
-        print("I have a problem with the station selected :-( ")
         station = "ACM00078861"
         file = dir + "/" + station + ".csv"
         data = pd.read_csv(file,
@@ -677,12 +671,13 @@ def upate_time_series(active_cell, data):
                        header=1)
 
 
-
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data.date, y=data.temp,
                              mode='lines',
                              name='lines',
-                             marker_color='pink'))
+                             marker_color='blue',
+                             ))
+
 
     fig.update_layout(title={
         "text": "Time series for the station " + station,
@@ -691,21 +686,23 @@ def upate_time_series(active_cell, data):
         "xanchor": "center",
         "yanchor": "top", },
 
-        height=400, width=500,
+        height=500, width=2450,
         margin={"r": 20, "t": 50, "l": 20, "b": 20},
         yaxis_title="Temperature [K]",
         xaxis_title="Year",
+
+        font=dict(
+            #family="Courier New, monospace",
+            size=15,
+            color="Black")
+
 
     )
 
     return fig
 
-    print('no cell selected')
-
-    return 0
 
 
-
+""" Launch the app """
 if __name__ == '__main__':
-
     app.run_server(debug=True)
