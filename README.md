@@ -1,5 +1,5 @@
 # Visualization2
-## TU Wien, SS2021
+### TU Wien, SS2021
 
 Contributors:
 
