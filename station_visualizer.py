@@ -4,7 +4,7 @@ import dash
 import plotly.express as px  # (version 4.7.0)
 import plotly.graph_objects as go
 import plotly.express as px
-
+import os,sys
 import dash_table
 
 import dash  # (version 1.12.0) pip install dash
@@ -238,9 +238,9 @@ app.layout = html.Div([
                     )
             ),
 
-    dbc.Row(dbc.Col(html.H2("Tool for the visualization of the IGRA2 upper-air/radiosonde stations using the size adapting technique from Janicke et al. 2012",
+    dbc.Row(dbc.Col(html.H2("Tool for the visualization of the IGRA2 upper-air/radiosonde stations using the size adapting technique from J" + u'\u00E4' + "nicke et al. 2012",
                             style={'color': 'black', 'fontSize': 25}),
-                    width={'size': 8}
+                    width={'size': 12}
                     )
             ),
 
@@ -293,9 +293,10 @@ app.layout = html.Div([
                      style={'width': "40%"}
                      ),
 
-             html.H2("Projection Type ",
+            html.Br(),
+
+            html.H2("Projection Type ",
                     style={'color': 'red', 'fontSize': fs_main}),
-             html.Br(),
 
              html.H2("Select the desired type of map projection. "
                     "The visualization is optimized for the 'Mercator' projection",
@@ -348,8 +349,8 @@ app.layout = html.Div([
                         step=10,
                         marks = { i: str(i) for i in dates },
                         value=[1900, 1950],
-
                         ) ],
+
         style={'width': '97%',
                 'fontSize': '22px',
                'color' : "red",
@@ -364,7 +365,7 @@ app.layout = html.Div([
         html.H2("Upper-Air/Radiosondes Stations Map ",
                 style={'color': 'red', 'fontSize': fs_main}),
         html.H2(
-            "Maps of the distribution of Upper-Air/Radiosondes Stations using deafult scatter plot and the implementation of Janicke et Al. 20120 visualization ",
+            "Maps of the distribution of Upper-Air/Radiosondes Stations using deafult scatter plot and the implementation of J" + u'\u00E4' + "nicke et Al. 2012 visualization ",
             style={'color': 'gray', 'fontSize': fs_des}),
     ]),
     ]),
@@ -373,16 +374,19 @@ app.layout = html.Div([
 
     # Placeholder for the maps (original and following Janicke et al. 2012 )
     html.Div([ html.Div([
-                        dcc.Graph(id='map', figure={},)],
-                        style={'width': '48%',
+                        dcc.Graph(id='map', figure={},
+                                  config = {'scrollZoom': False})],
+                        style={'width': '45%',
                                'display': 'inline-block',
-                               'padding-left': '50px' }),
+                               'padding-left': '50px' },
+                        ),
 
-              html.Div([dcc.Graph(id='map_2', figure={} ,
+              html.Div([dcc.Graph(id='map_2', figure={},
+                                  config = {'scrollZoom': False},
                         clickData={'station': 'CONCORDIA'}
                         ),
                        ],
-                       style={'width': '48%',
+                       style={'width': '45%',
                               'display': 'inline-block',
                               'padding-left': '50px' }),
               ]),
@@ -397,7 +401,7 @@ app.layout = html.Div([
         html.H2("IGRA2 Data ",
                 style={'color': 'red', 'fontSize': fs_main}),
         html.H2(
-            "Select a data point clicking on the Janicke map to display a summary of the data of all stations included in the bubble",
+            "Select a data point clicking on the J" + u'\u00E4' + "nicke map to display a summary of the data of all stations included in the bubble",
             style={'color': 'gray', 'fontSize': fs_des}),
 
         html.Div([dash_table.DataTable(
@@ -431,6 +435,7 @@ app.layout = html.Div([
             html.H2(
                 "Select a row from the table to display the Temperature time series [P=100hPa]",
                 style={'color': 'gray', 'fontSize': fs_des}),
+            html.Br(),
 
             html.Div([dcc.Graph(id='time_series',
                                 )],
@@ -514,7 +519,7 @@ def update_plots(year_range, scale, projection):
         )
 
         #map.update_layout(height=500, margin={"r": 20, "t": 20, "l": 20, "b": 20})
-        map.update_layout(height=700, width = 1100,
+        map.update_layout(height=700, width = 800,
                margin={"r": 20, "t": 50, "l": 20, "b": 20} )
 
         vienna_lat, vienna_lon = 48.2, 16.3
@@ -529,12 +534,24 @@ def update_plots(year_range, scale, projection):
 
         return map
 
-    def paper_map(df):
+    def paper_map(df, scale, start_date, end_date):
 
         """ Main function to create a geo-scatter plot.
         Will scale points size according to the algorithm adapted from Janicke et al. 2012 """
-        df = combine_points(df, scale)
 
+        df_path = 'data/precomputed_df_'+ str(start_date) + '_' + str(end_date) + '_scale_' + str(scale) + '.csv'
+        if not os.path.isfile(df_path):
+            print(' *** Aggregating data points, might take a while :-( *** ')
+
+            df = combine_points(df, scale)
+            df.to_csv(df_path, sep = '\t')
+        else:
+            print(' *** Loading existing aggregated data frame *** ')
+            df = pd.read_csv(df_path, sep = '\t')
+
+
+
+        print(0)
         map = go.Figure(data=go.Scattergeo(lat=df.latitude, lon=df.longitude,
                                            text=df["station"],
                                            mode='markers',
@@ -569,7 +586,7 @@ def update_plots(year_range, scale, projection):
 
         )
 
-        map.update_layout(height=700, width = 1100,
+        map.update_layout(height=700, width = 800,
                margin={"r": 20, "t": 50, "l": 20, "b": 20}
 
                           )
@@ -579,7 +596,7 @@ def update_plots(year_range, scale, projection):
         map.update_layout(
 
             paper_bgcolor="LightSteelBlue",
-            title='Janicke et Al. , 2012',
+            title= "J" + u'\u00E4' + "nicke et Al. , 2012",
             geo=dict(
                 projection_scale=scale,  # this is kind of like zoom
                 center=dict(lat=vienna_lat, lon=vienna_lon),  # this will center on the point
@@ -589,7 +606,7 @@ def update_plots(year_range, scale, projection):
 
 
     standard_map = standard_map(df)
-    paper_map = paper_map(df)
+    paper_map = paper_map(df,scale, start_date, end_date)
     #time_series = time_series()
     #return [paper_map, standard_map, time_series]  # NB must always return a list even if you have one output only, due to @app
 
@@ -660,15 +677,17 @@ def upate_time_series(active_cell, data):
     try:
         cell = active_cell["row"]
         station = data[cell]["code"]
-
+        name = station + ' ( ' + data[cell]["station"] + ' ) '
         file = dir + "/" + station + ".csv"
         data = pd.read_csv(file,
                        sep="\t",
                        names=["index", "date", "temp"],
                        header=1)
+        #name = station + '(' + data[cell]["station"] + ')'
 
     except:
         station = "ACM00078861"
+        name = "ACM00078861 ( COOLIDGE FIELD (UA) )"
         file = dir + "/" + station + ".csv"
         data = pd.read_csv(file,
                        sep="\t",
@@ -683,9 +702,8 @@ def upate_time_series(active_cell, data):
                              marker_color='blue',
                              ))
 
-
     fig.update_layout(title={
-        "text": "Time series for the station " + station,
+        "text": "Time series for the station " + name,
         "y": 1.,
         "x": 0.5,
         "xanchor": "center",
